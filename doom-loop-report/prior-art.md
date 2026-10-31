@@ -15,7 +15,7 @@
 > 调研方式：各仓库源码 grep + git log 复核（pi / dsh / codex 基于当日 pull 的最新代码）+ Claude Code 官方文档（llms-full.txt 全量语料）交叉验证
 > 调研代码库版本：opencode upstream/dev @ `0112a92c41`；kimi-code main（当日最新）；deepseek-harness master @ `639ed01539`（0.2.0-rc.2）；codex main @ `57ac6f5163`；pi main @ `c2f65d8f1`（v0.99.2）；Claude Code 解包源码 2.1.88 + 官方文档（最新）
 
-一次真实会话中，Agent（Model B · high 推理档）在 opencode 里连续 ~200 次轮询同三条 git 命令（`git status --short` ×87 等），持续 87 分钟、烧掉 56.8M cache-read tokens，期间用户两次打断均无效。由此引出调研：各家 Agent harness 如何防「重复工具调用死循环」。
+一次真实会话中，Agent（Kimi K3 · high 推理档）在 opencode 里连续 ~200 次轮询同三条 git 命令（`git status --short` ×87 等），持续 87 分钟、烧掉 56.8M cache-read tokens，期间用户两次打断均无效。由此引出调研：各家 Agent harness 如何防「重复工具调用死循环」。
 
 ## 二、循环的时序模式：从混沌收敛到节拍器
 

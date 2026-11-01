@@ -43,49 +43,27 @@
 </ul>
 <p><span class="en">The important consequence: entropy <i>decreases</i> over time. Variants vanish after the first 15% of the loop. The model does not get messier, it gets more regular. A detector based on spotting variation or on adjacent repeats cannot see the metronome phase at all.</span><span class="zh">关键推论：熵随时间<b>下降</b>——变体在开头 15% 之后归零。模型不是越转越乱，而是越转越「整齐」。靠「识别变化」或「相邻重复」的检测器，在节拍器相位里完全失明。</span></p>
 
-<h2><span class="en">3. Matrix A: six harnesses</span><span class="zh">3. 对比矩阵 A：六家</span></h2>
+<h2><span class="en">3. The unified comparison matrix</span><span class="zh">3. 统一对比矩阵</span></h2>
+<p class="note"><span class="en">Implementations as rows, dimensions as columns. A dash means "not applicable" or "no general detector".</span><span class="zh">实现为行、维度为列。「—」表示不适用或无通用检测器。</span></p>
 <table>
-<tr><th>Dimension</th><th>opencode (v1)</th><th>kimi-code</th><th>deepseek-harness</th><th>Claude Code</th><th>Codex</th><th>pi</th></tr>
-<tr><td>Dedicated detector</td><td>✅ doom_loop</td><td>✅ Repeat Breaker</td><td>✅ repeat-tool-reminder</td><td>❌</td><td>❌ (goal mode has a stall breaker)</td><td>❌</td></tr>
-<tr><td>Predicate</td><td>same tool + raw JSON input</td><td>tool + normalized-args sha256</td><td>tool + key-sorted params</td><td>—</td><td>— (by output per round)</td><td>—</td></tr>
-<tr><td>Compares tool output</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
-<tr><td>Scope</td><td>inside one assistant message</td><td>cross-step streak</td><td>chained consecutive calls</td><td>—</td><td>goal rounds</td><td>—</td></tr>
-<tr><td>Thresholds</td><td>3</td><td>3 / 5 / 8 / 12</td><td>3 / 5 / 8</td><td>—</td><td>3 idle or failed rounds</td><td>—</td></tr>
-<tr><td>Action on trigger</td><td>permission ask</td><td>tiered warnings → stop turn at 12</td><td>inject a reminder, never blocks</td><td>—</td><td>goal marked blocked</td><td>—</td></tr>
-<tr><td>Hard circuit breaker</td><td>❌ ("always" bypasses)</td><td>✅ at 12</td><td>❌</td><td>only when maxTurns is set</td><td>✅ (goal mode only)</td><td>❌</td></tr>
-<tr><td>Reset on new user message</td><td>—</td><td>—</td><td>✅ resets the chain</td><td>—</td><td>—</td><td>—</td></tr>
-<tr><td>Step/turn cap</td><td>agent.steps (default ∞)</td><td>maxStepsPerTurn (default ∞)</td><td>❌</td><td>maxTurns family</td><td>❌</td><td>❌</td></tr>
+<tr><th>Implementation</th><th>Predicate</th><th>Output compared?</th><th>Scope / window</th><th>Thresholds</th><th>Action on trigger</th><th>Reset on user msg</th><th>Hard breaker</th></tr>
+<tr><td>opencode v1 <code>doom_loop</code></td><td>same tool + raw JSON input</td><td>❌</td><td>one assistant message</td><td>3</td><td>permission ask</td><td>—</td><td>❌ ("always" bypasses)</td></tr>
+<tr><td>kimi-code <code>Repeat Breaker</code></td><td>tool + normalized-args sha256</td><td>❌</td><td>cross-step streak</td><td>3/5/8/12</td><td>tiered warnings → stop turn at 12</td><td>—</td><td>✅ at 12</td></tr>
+<tr><td>deepseek-harness <code>repeat-tool-reminder</code></td><td>tool + key-sorted params</td><td>❌</td><td>chained consecutive calls</td><td>3/5/8</td><td>reminder only, never blocks</td><td>✅ resets the chain</td><td>❌</td></tr>
+<tr><td>Claude Code</td><td>no general detector</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>only maxTurns</td></tr>
+<tr><td>Codex</td><td>no general detector (goal mode: by output per round)</td><td>❌</td><td>goal rounds</td><td>3 idle or failed rounds</td><td>goal marked blocked</td><td>—</td><td>✅ goal mode only</td></tr>
+<tr><td>pi</td><td>no general detector</td><td>—</td><td>—</td><td>—</td><td>—</td><td>—</td><td>❌</td></tr>
+<tr><td>gemini-cli <code>LoopDetectionService</code></td><td>sha256(tool + params), k-period cycles + LLM layer</td><td>❌ (LLM layer sees results)</td><td>last 25 calls, text 5000 chars</td><td>k=1..5 ×5 repeats, text 10, LLM from turn 30</td><td>first: inject feedback. Second: abort stream and ask</td><td>✅ hard reset</td><td>✅ second hit</td></tr>
+<tr><td>OpenClaw <code>tool-loop-*</code></td><td>tool + params hash + result hash + failure-equivalence hash</td><td>✅ result hash gates every streak</td><td>last 30 calls, per runId</td><td>warn 10 / block 20 / global 30 / unknown-tool 10</td><td>warn: append to result. Severe: block the batch. Second severe: end the run</td><td>per runId</td><td>✅ block 20 + global 30</td></tr>
+<tr><td>Cline <code>LoopDetectionTracker</code></td><td>tool + JSON.stringify(sortKeys(params))</td><td>❌</td><td>adjacent only, resets on any different call</td><td>warn 3 / block 5</td><td>warn: inject a user message. Block: stop the run until the user replies</td><td>❌ (only compaction/restore)</td><td>block stops the run</td></tr>
+<tr><td>Roo Code <code>ToolRepetitionDetector</code></td><td>stable-stringify({name, params, nativeArgs})</td><td>❌</td><td>adjacent only</td><td>3 (reuses mistake limit)</td><td>block the call, ask the user inline</td><td>❌</td><td>block stops the run</td></tr>
+<tr><td>crewAI</td><td>sanitize(tool) + params, shallow</td><td>❌</td><td>adjacent pair only</td><td>1 (any adjacent repeat)</td><td>skip the call, return "stop repeating" as the tool result</td><td>—</td><td>—</td></tr>
+<tr><td>AutoGPT (platform)</td><td>(tool, json.dumps(args, sort_keys=True))</td><td>❌ (only the failure outcome)</td><td>adjacent only, success resets</td><td>3 failures, 5 empty calls</td><td>block and return STOP as the tool result. Empty-call breaker aborts the stream</td><td>❌</td><td>✅ empty-call breaker</td></tr>
+<tr><td>takt</td><td>(tool, outcome, inputHash, resultHash) 4-tuple, domain-separated sha256</td><td>✅ resultHash is part of the tuple</td><td>adjacent only (single lastKey)</td><td>12 exact repeats, 2 unknown tools, 4 bad args, 3 edit conflicts, 10 errors</td><td>abort the SSE stream → corrective prompt (once per fingerprint) → fresh session retry → fail</td><td>per-attempt lifecycle</td><td>stream abort</td></tr>
+<tr><td>AgentSight (alibaba/anolisa)</td><td>out-of-process observability, no inline gate</td><td>n/a</td><td>process level</td><td>n/a</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+<tr><td><b>Our design</b></td><td>A: tool + canonical input, B: output lines, C: tool + failure-equivalence hash</td><td>✅ A counts only on byte-identical output</td><td>per signature, no window, interleaving never resets</td><td>A: warn 3 / block 6, B: 3/5/8/12, C: warn 4 / block 6</td><td>permission ask (per signature), breaker stops the run</td><td>no (A/C survive)</td><td>✅ B at 12</td></tr>
 </table>
-
-<h2><span class="en">4. Matrix B: gemini-cli and OpenClaw</span><span class="zh">4. 对比矩阵 B：gemini-cli 与 OpenClaw</span></h2>
-<table>
-<tr><th>Dimension</th><th>gemini-cli</th><th>OpenClaw</th></tr>
-<tr><td>Dedicated detector</td><td>✅ LoopDetectionService (three layers)</td><td>✅ 6 detectors (tool-loop-* family)</td></tr>
-<tr><td>Predicate</td><td>sha256(tool + ":" + JSON.stringify(params)), no key sorting</td><td>tool + params hash + result hash + failure-equivalence hash</td></tr>
-<tr><td>Compares tool output</td><td>❌ (the LLM layer sees results instead)</td><td>✅ sha256(stableStringify(result)), gates every streak</td></tr>
-<tr><td>Scope</td><td>last 25 calls (5 × 5), text layer last 5000 chars</td><td>last 30 calls, scoped per runId</td></tr>
-<tr><td>Thresholds</td><td>cycles k=1..5, each ×5 repeats, text chunks 10, LLM layer from turn 30</td><td>warn 10 / block 20 / global 30 / unknown-tool 10</td></tr>
-<tr><td>Action on trigger</td><td>first hit: inject feedback, continue. Second hit: abort the stream and ask</td><td>warn: append to tool result, severe: block the batch, second severe: end the run</td></tr>
-<tr><td>Hard circuit breaker</td><td>✅ second hit aborts</td><td>✅ block 20 + global 30</td></tr>
-<tr><td>Reset on new user message</td><td>✅ hard reset of all counters</td><td>scoped per runId, not inherited across runs</td></tr>
-<tr><td>Blocked calls keep counting</td><td>— (stream aborts)</td><td>✅ vetoed calls enter history and extend the streak</td></tr>
-<tr><td>Validation-failed calls</td><td>—</td><td>separate class: neither extends nor ends a failure streak</td></tr>
-</table>
-
-<h2><span class="en">5. Matrix C: five more, plus our design</span><span class="zh">5. 对比矩阵 C：另外五家与本方案</span></h2>
-<table>
-<tr><th>Dimension</th><th>Cline</th><th>Roo Code</th><th>crewAI</th><th>AutoGPT (platform)</th><th>takt</th><th>Our design</th></tr>
-<tr><td>Dedicated detector</td><td>✅ LoopDetectionTracker</td><td>✅ ToolRepetitionDetector</td><td>⚠️ partial (adjacent dedup, threshold 1)</td><td>⚠️ failure breaker only</td><td>✅ 10-guard suite, 3 for loops</td><td>✅ three signals + same-message guard</td></tr>
-<tr><td>Predicate</td><td>tool + JSON.stringify(sortKeys(params))</td><td>stable-stringify({name, params, nativeArgs})</td><td>sanitize(tool) + params, shallow</td><td>(tool, json.dumps(args, sort_keys=True))</td><td>(tool, outcome, inputHash, resultHash) 4-tuple, domain-separated sha256</td><td>A: tool + canonical input, B: output lines, C: tool + failure-equivalence hash</td></tr>
-<tr><td>Compares tool output</td><td>❌</td><td>❌</td><td>❌</td><td>❌ (only the failure outcome)</td><td>✅ resultHash is part of the tuple</td><td>✅ A counts only on byte-identical output</td></tr>
-<tr><td>Scope</td><td>adjacent only, resets on any different call</td><td>adjacent only</td><td>adjacent pair only</td><td>adjacent only, success resets</td><td>adjacent only (single lastKey)</td><td>per signature, interleaving never resets, no window</td></tr>
-<tr><td>Thresholds</td><td>warn 3 / block 5</td><td>3 (reuses mistake limit)</td><td>1 (any adjacent repeat)</td><td>3 failures, 5 empty calls</td><td>12 exact repeats, 2 unknown tools, 4 bad args, 3 edit conflicts, 10 errors</td><td>A: warn 3 / block 6, B: 3/5/8/12, C: warn 4 / block 6</td></tr>
-<tr><td>Action on trigger</td><td>warn: inject a user message. Block: stop the run until the user replies</td><td>block the call, ask the user inline</td><td>skip the call, return "stop repeating" as the tool result</td><td>block and return STOP as the tool result. Empty-call breaker aborts the stream</td><td>abort the SSE stream → corrective prompt (once per fingerprint) → fresh session retry → fail</td><td>permission ask (per signature), breaker stops the run</td></tr>
-<tr><td>Reset on new user message</td><td>❌ (only on compaction/restore)</td><td>❌</td><td>—</td><td>❌</td><td>— (per-attempt lifecycle)</td><td>no (a user message must not hand the loop a fresh counter)</td></tr>
-<tr><td>Configurable</td><td>✅ thresholds + disable</td><td>✅ consecutiveMistakeLimit</td><td>max_iter etc.</td><td>env vars</td><td>✅ profiles + env vars</td><td>thresholds designed to be tunable</td></tr>
-</table>
-
-<h2><span class="en">6. The stranded PRs, replayed on the incident</span><span class="zh">6. 搁浅 PR 在本事故序列上的回放</span></h2>
+<h2><span class="en">4. The stranded PRs, replayed on the incident</span><span class="zh">4. 搁浅 PR 在本事故序列上的回放</span></h2>
 <p><span class="en">We replayed the earlier opencode PR attempts on the same 200-call incident. This shows where each one fires, and why each fails:</span><span class="zh">我们把 opencode 此前的几个 PR 方案在同一份 200 次调用序列上做了回放，看各自在哪里触发、为何失败：</span></p>
 <table>
 <tr><th>Approach</th><th>Mechanism</th><th>Fires?</th><th>Why it fails</th></tr>
@@ -100,14 +78,14 @@
 </table>
 <p><span class="en">Lessons we took. The right scope is the current user turn across assistant messages. Detector state stays in memory, with no database read per call. Use canonical serialization, not raw <code>JSON.stringify</code>. Ask through the permission flow and de-duplicate prompts. Several of these PRs died from process reasons (no review, template checks, staleness), not from being wrong.</span><span class="zh">我们得到的启示：正确的范围是当前用户回合内、跨 assistant 消息；检测状态驻内存，绝不每次调用读数据库；用规范化序列化而非裸 <code>JSON.stringify</code>；走权限流且询问去重。这些 PR 多数死于流程原因（无人 review、模板检查、陈旧），而不是方案错误。</span></p>
 
-<h2><span class="en">7. Community demand and the detector's history</span><span class="zh">7. 社区需求与检测器的历史</span></h2>
+<h2><span class="en">5. Community demand and the detector's history</span><span class="zh">5. 社区需求与检测器的历史</span></h2>
 <ul>
   <li><span class="en"><b>Quantified losses keep recurring.</b> #45442: 364 identical greps in a subagent, ~142M cache-read tokens. #49042: 525 steps / 66 minutes with zero user input. #47253: 22M tokens on one task. #52092: a runaway loop drained a monthly Go allowance. Reports span 2025-11 to 2026-10 across every model family.</span><span class="zh"><b>量化损失持续复发。</b>#45442：subagent 364 次相同 grep，约 1.42 亿 cache-read tokens。#49042：525 步 / 66 分钟零用户输入。#47253：单任务 22M tokens。#52092：失控循环烧光整月 Go 额度。报告横跨 2025-11 至 2026-10，覆盖所有模型族。</span></li>
   <li><span class="en"><b>The community already diagnosed the bugs line by line.</b> #51965: doom_loop never fires across steps. #47759: A,B,A,B rotations escape. #52372: failed retries are not counted. #25254 named the exact processor.ts defects in May, and the stale-bot closed it. #23531 asked for configurable thresholds, #32187 for looser matching.</span><span class="zh"><b>社区早已把缺陷逐行指出。</b>#51965：doom_loop 跨 step 永不触发。#47759：A,B,A,B 轮换漏检。#52372：失败重试不计入。#25254 五月就写明了 processor.ts 的行号级缺陷，被 stale-bot 关闭。#23531 要求阈值可配，#32187 要求宽松匹配。</span></li>
   <li><span class="en"><b>The detector has not evolved since birth.</b> PR #3445 introduced doom_loop on 2025-10-30. Every later change was permission plumbing, not detection. The threshold is still 3, the scope is still one assistant message, and the comparison is still raw <code>JSON.stringify</code>.</span><span class="zh"><b>检测器自引入起就没演进过。</b>doom_loop 于 2025-10-30 由 PR #3445 引入。此后的改动全是权限层管线，检测算法本身一年未动：阈值仍是 3、范围仍是单条 assistant 消息、比对仍是裸 <code>JSON.stringify</code>。</span></li>
 </ul>
 
-<h2><span class="en">8. Introduction timeline: three harnesses compared</span><span class="zh">8. 引入时间线：三家对照</span></h2>
+<h2><span class="en">6. Introduction timeline: three harnesses compared</span><span class="zh">6. 引入时间线：三家对照</span></h2>
 <table>
 <tr><th></th><th>Introduced</th><th>Since then</th></tr>
 <tr><td>gemini-cli</td><td>2025-07-15; hash-based cycle detection landed 10 days later</td><td>three layers, continuously improved (LLM layer added 2025-07-18)</td></tr>
@@ -116,7 +94,7 @@
 </table>
 <p><span class="en">opencode's detector was born three months after gemini-cli's hash-based cycle detection and then stood still. That is a fully verifiable statement, and it frames the gap better than claiming nobody solved the problem.</span><span class="zh">opencode 的检测器比 gemini-cli 的哈希式周期检测晚出生三个月，此后没有任何算法演进。这条完全可核实，也比「没人解决过」更能说明差距。</span></p>
 
-<h2><span class="en">9. Cross-cutting patterns</span><span class="zh">9. 横向规律</span></h2>
+<h2><span class="en">7. Cross-cutting patterns</span><span class="zh">7. 横向规律</span></h2>
 <ol>
   <li><span class="en"><b>"3" is the shared warning threshold</b> across opencode, kimi-code, deepseek-harness and Codex's goal mode.</span><span class="zh"><b>「连续 3 次」是各家警告档的共同起点</b>（opencode、kimi-code、deepseek-harness、Codex goal 模式）。</span></li>
   <li><span class="en"><b>Two philosophies:</b> hard breakers (kimi-code stops the turn at 12, Codex marks the goal blocked) vs soft reminders (deepseek-harness never blocks, opencode asks). Unattended runs defeat soft reminders.</span><span class="zh"><b>两派哲学：</b>硬熔断派（kimi-code 到 12 停 turn、Codex goal 置 blocked）与软提醒派（deepseek-harness 绝不拦截、opencode 问用户）。无人值守场景下软提醒会被绕过。</span></li>
@@ -125,12 +103,12 @@
   <li><span class="en"><b>The need is general.</b> Claude Code and Codex keep adding guards for specific no-progress shapes. But nobody offers a general tool-call-level detector with output-identity gating and no window.</span><span class="zh"><b>需求是普遍的。</b>Claude Code 与 Codex 都在为特定的无进展形态补洞，但「工具调用级 + 输出一致性 + 无窗口」的通用检测，目前没人做。</span></li>
 </ol>
 
-<h2><span class="en">10. Design positioning: the one hard difference</span><span class="zh">10. 设计定位：最硬的那条差异</span></h2>
+<h2><span class="en">8. Design positioning: the one hard difference</span><span class="zh">8. 设计定位：最硬的那条差异</span></h2>
 <p><span class="en"><b>Window size must be at least threshold × rotation period, or the block tier is dead code.</b> OpenClaw's window of 30 calls and block tier of 20 can never catch a period-4 rotation (the measured max streak is 15). gemini-cli avoids this with exact period matching, at the cost of firing on any variant. Our signal A has no time window at all. Each signature stores only its last output hash and its streak. A period-4 signature climbs to 85 repeats. Memory is O(number of signatures), cost per call is O(1), and we never read history.</span><span class="zh"><b>窗口大小必须 ≥ 阈值 × 轮换周期，否则拦截档就是死代码。</b>OpenClaw 窗口 30、拦截档 20，在周期 4 轮换下够不着（实测单签名最大 streak 15）。gemini-cli 靠精确周期匹配绕开，代价是一个变体就打断。我们的信号 A 不设时间窗口：每个签名只存「上次输出哈希 + 当前 streak」，所以周期 4 的签名能一路累到 85 次。内存 O(签名数)、单次调用 O(1)、不读历史库。</span></p>
 <p><span class="en">The replay numbers behind that claim: on the incident, gemini-cli fires at call #45. OpenClaw never reaches its block tier. Our B fires at #12 and A at #21. We do not need to claim that nobody did this before — the four numbers carry the argument.</span><span class="zh">支撑这条的实测数字：同一份事故序列上，gemini-cli 在第 45 次调用触发，OpenClaw 永远到不了拦截档，我们的 B 在第 12 次、A 在第 21 次触发。我们不需要声称「没人做过」——四个数字本身就构成论据。</span></p>
 <p><span class="en">Two more positioning choices. Thresholds: 3 is the shared <i>warning</i> level. Block levels vary widely (Cline 5, Roo 3, OpenClaw 20). We warn early and keep the block tiers conservative. Escalation: gemini-cli injects feedback first and only asks the user on the second hit. Our tiers do the same. The model gets warnings before the user is ever prompted.</span><span class="zh">另外两条定位。阈值：3 是各家共同的<b>警告</b>起点，但拦截档差异很大（Cline 5、Roo 3、OpenClaw 20），所以我们早警告、拦截档保持保守。升级方式：gemini-cli 先注入反馈、第二次才问用户；我们的档位也一样——先给模型警告，再轮到用户。</span></p>
 
-<h2><span class="en">11. What we adopted, and what we deliberately rejected</span><span class="zh">11. 我们采纳了什么，刻意拒绝了什么</span></h2>
+<h2><span class="en">9. What we adopted, and what we deliberately rejected</span><span class="zh">9. 我们采纳了什么，刻意拒绝了什么</span></h2>
 <ul>
   <li><span class="en"><b>Per-signature counting, not consecutive matching.</b> Cline, Roo Code, crewAI, AutoGPT and the opencode v1 detector all compare only adjacent calls, so a rotation never trips them. Our signal A keeps one streak per signature, so interleaving never resets it.</span><span class="zh"><b>按签名计数，而非连续全等。</b>Cline、Roo Code、crewAI、AutoGPT 以及 opencode v1 的检测器都只比相邻调用，轮换永远凑不出连续全等。我们的信号 A 给每个签名独立计数，穿插调用不清零。</span></li>
   <li><span class="en"><b>Output identity as the gate.</b> OpenClaw and takt showed that output hashes belong in the predicate. Signal A counts a repeat only when the output is byte-identical. A read-edit-test cycle with real progress never builds a streak.</span><span class="zh"><b>输出全等作为累计门槛。</b>OpenClaw 与 takt 证明了输出哈希应进判定。信号 A 只在输出逐字节相同时才累计，因此 read-edit-test 这类有真实进展的循环不会累计 streak，天然避免误伤。</span></li>
@@ -142,7 +120,7 @@
   <li><span class="en"><b>Rejected: kill on the first hit.</b> Enforcement goes through the existing permission ask, so intentional polling always has an escape hatch.</span><span class="zh"><b>拒绝：首次命中即掐死。</b>所有拦截都走现有权限询问，有意轮询总有逃生口。</span></li>
 </ul>
 
-<h2><span class="en">12. Method</span><span class="zh">12. 调研方法</span></h2>
+<h2><span class="en">10. Method</span><span class="zh">10. 调研方法</span></h2>
 <p><span class="en">We read every mechanism in the project's own repository at a recorded HEAD commit in October 2026. The commits: opencode v1.18.30, gemini-cli 56da16d, OpenClaw dd0ecdd4, Cline 95e54e4, Roo Code b867ec9, crewAI 42ae4bf, AutoGPT 0edeafc, takt 11c18844. The incident analysis comes from an anonymized real session export (models shown as Model A / Model B). We did not rely on second-hand descriptions. Where a project has no detector, we say so directly.</span><span class="zh">以上每条机制均在对应项目仓库中按所记录的 HEAD commit 实读（2026 年 10 月：opencode v1.18.30；gemini-cli 56da16d；OpenClaw dd0ecdd4；Cline 95e54e4；Roo Code b867ec9；crewAI 42ae4bf；AutoGPT 0edeafc；takt 11c18844）。事故分析来自一份脱敏的真实会话导出（模型以 Model A / Model B 表示）。所有机制均以源码为准，不以转述为据；没有检测器的项目，文中直接写明。</span></p>
 
 </body>
